@@ -72,7 +72,7 @@ print *, returned ! output: 3
 ! final list: {2, 4}
 ```
 ### Iterating through the list
-```fortran
+```f90
 use class_IntDoublyLinkedList
 
 type(IntDoublyIterator)   :: iter
