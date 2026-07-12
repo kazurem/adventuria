@@ -1,0 +1,488 @@
+! Takeaways:
+! 1. There is a certain urge to implement new functions instead of refining already implemeneted ones.
+! 2. "In the beginning you always want the results. In the end all you want is control."
+! 3. Have a good idea of the API and it's usage first before implementation
+! 4. Write tests before starting implementation.
+! 5. Write things down and plan before starting anything
+! 6. Don't make big changes at once. Make small ones and then check if things work (tests come in handy here)
+! 7. Good debuggers are invaluable
+
+! supported types
+#:set TYPES = [('Int', 'integer'), ('Real', 'real'), ('Complex', 'complex')]
+
+#:for suffix, dtype in TYPES
+    !> @brief Node which points to it's previous node and next nodes
+    module class_${suffix}$DoublyNode
+        type :: ${suffix}$DoublyNode
+            !> Pointer to next node
+            type(${suffix}$DoublyNode), pointer :: next => null()
+            !> Pointer to previous node
+            type(${suffix}$DoublyNode), pointer :: prev => null()
+            !> Node's value
+            ${dtype}$ :: val=0
+        end type ${suffix}$DoublyNode
+    end module class_${suffix}$DoublyNode
+
+    !> @brief Manages a list of doubly nodes connected linearly
+    module class_${suffix}$DoublyLinkedList
+        use class_${suffix}$DoublyNode
+        implicit none
+
+        type :: ${suffix}$DoublyLinkedList
+            !> Pointer to first node
+            type(${suffix}$DoublyNode), pointer :: head => null()
+            !> Pointer to last node
+            type(${suffix}$DoublyNode), pointer :: tail => null()
+            !> Total elements in the list
+            integer :: no_of_elems = 0
+
+        contains
+            procedure :: insert_ptr => insert_ptr_${suffix}$
+            procedure :: insert_itr => insert_itr_${suffix}$
+            generic   :: insert => insert_ptr, insert_itr
+            procedure :: push_front => push_front_${suffix}$
+            procedure :: push_back => push_back_${suffix}$
+
+            procedure :: remove_ptr => remove_ptr_${suffix}$
+            procedure :: remove_itr => remove_itr_${suffix}$
+            generic   :: remove => remove_ptr, remove_itr
+            procedure :: pop_front => pop_front_${suffix}$
+            procedure :: pop_back => pop_back_${suffix}$
+
+            procedure :: size => size_${suffix}$
+
+            procedure :: reverse => reverse_${suffix}$
+            procedure :: clear => clear_${suffix}$
+            procedure :: replace => replace_${suffix}$
+            procedure :: erase => erase_${suffix}$
+            procedure :: begin => begin_${suffix}$
+            procedure :: end => end_${suffix}$
+            final :: destroy_list_${suffix}$
+
+        end type ${suffix}$DoublyLinkedList
+
+        !> @brief Iterator class for DoublyLinkedList
+        type :: ${suffix}$DoublyIterator
+            !> Pointer to the current node.
+            type(${suffix}$DoublyNode), pointer :: curr => null()
+
+        contains
+            procedure :: has_next => has_next_${suffix}$
+            procedure :: next => next_${suffix}$
+            procedure :: prev => prev_${suffix}$
+            procedure :: set_val => set_val_${suffix}$
+            procedure :: get_val => get_val_${suffix}$
+        end type ${suffix}$DoublyIterator
+
+        interface operator(==)
+            procedure :: iter_eq_${suffix}$
+        end interface
+
+        interface operator(/=)
+            procedure :: iter_neq_${suffix}$
+        end interface
+    contains
+        ! --------------------------------------------------
+        ! Procedure Definitions for DoublyIterator
+        ! --------------------------------------------------
+        !> @brief Operator overload of `/=` for DoublyIterator.
+        !> Two iterators are equal if they point to the same
+        !> memory location.
+        !! @param left The left side of `/=`
+        !! @param right The right side of `/=`
+        function iter_eq_${suffix}$ (left, right) result(res)
+            type(${suffix}$DoublyIterator), intent(in) :: left, right
+            logical :: res
+
+            ! Two iterators are equal if they point to the same memory location
+            res = associated(left%curr, right%curr)
+        end function iter_eq_${suffix}$
+
+        !> @brief Operator overload of `/=` for DoublyIterator.
+        !> Two iterators are equal if they point to the same
+        !> memory location.
+        !! @param left The left side of `/=`
+        !! @param right The right side of `/=`
+        function iter_neq_${suffix}$ (left, right) result(res)
+            type(${suffix}$DoublyIterator), intent(in) :: left, right
+            logical :: res
+
+            res = .not. (left == right)
+        end function iter_neq_${suffix}$
+
+        !> @brief Check if iterator has an associated memory location
+        function has_next_${suffix}$ (this) result(res)
+            class(${suffix}$DoublyIterator), intent(in) :: this
+            logical :: res
+            res = associated(this%curr)
+        end function has_next_${suffix}$
+
+        !> @brief Advance (increment) iterator.
+        subroutine next_${suffix}$ (this)
+            class(${suffix}$DoublyIterator), intent(inout) :: this
+
+            if (.not. this%has_next()) then
+                error stop "DoublyIterator%next: Attempted to advance (increment) an invalid iterator."
+            end if
+            this%curr => this%curr%next
+        end subroutine next_${suffix}$
+
+        !> @brief Retreat (decrement) iterator.
+        subroutine prev_${suffix}$ (this)
+            class(${suffix}$DoublyIterator), intent(inout) :: this
+
+            if (.not. this%has_next()) then
+                error stop "DoublyIterator%prev: Attempted to retreat (decrement) an invalid iterator."
+            end if
+            this%curr => this%curr%prev
+        end subroutine prev_${suffix}$
+
+        !> @brief To get_val the value of the node the iterator is pointing to.
+        function get_val_${suffix}$ (this) result(val)
+            class(${suffix}$DoublyIterator), intent(in) :: this
+            ${dtype}$ :: val
+
+            if (.not. this%has_next()) then
+                error stop "DoublyIterator%get_val: Attempted to read value from an invalid iterator."
+            end if
+            val = this%curr%val
+        end function get_val_${suffix}$
+
+        !> @brief Set the value of of the node the iterator is pointing to.
+        !! @param val The new value
+        subroutine set_val_${suffix}$ (this, val)
+            class(${suffix}$DoublyIterator), intent(inout) :: this
+            ${dtype}$::val
+
+            if (.not. this%has_next()) then
+                error stop "DoublyIterator%set: Attempted to mutate value via an invalid iterator."
+            end if
+            this%curr%val = val
+        end subroutine set_val_${suffix}$
+
+        ! --------------------------------------------------
+        ! Procedure definitions for DoublyLinkedList
+        ! --------------------------------------------------
+        !> @brief Insert node before another node. Time complexity is O(1).
+        !! @param iter The pointer specifying the node before which the new node
+        !! will be inserted.
+        !! @param val The value to be inserted
+        subroutine insert_ptr_${suffix}$ (this, iter, val)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            type(${suffix}$DoublyNode), intent(in), pointer:: iter
+            ${dtype}$, intent(in) :: val
+
+            type(${suffix}$DoublyNode), pointer :: new_node
+            type(${suffix}$DoublyNode), pointer :: local_iter
+
+            if (.not. associated(this%head) .or. associated(iter, this%head)) then
+                call this%push_front(val)
+                return
+            end if
+
+            if (.not. associated(iter)) then
+               call this%push_back(val)
+               return
+            end if
+
+            local_iter => iter
+
+            allocate(new_node)
+            new_node%val = val
+
+            new_node%next => local_iter
+            new_node%prev => local_iter%prev
+
+            local_iter%prev%next => new_node
+            local_iter%prev => new_node
+
+            this%no_of_elems = this%no_of_elems + 1
+        end subroutine insert_ptr_${suffix}$
+
+        !> @brief Insert node before another node. Time complexity is O(1).
+        !! @param iter The iterator specifying the node before which the new node
+        !! will be inserted.
+        !! @param val The value to be inserted
+        subroutine insert_itr_${suffix}$ (this, iter, val)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            type(${suffix}$DoublyIterator), intent(in) :: iter
+            ${dtype}$, intent(in) :: val
+
+            call this%insert(iter%curr, val)
+        end subroutine insert_itr_${suffix}$
+
+        !> @brief Insert given value at head (start). Time complexity is O(1).
+        !! @param val The value to be inserted
+        subroutine push_front_${suffix}$ (this, val)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(in) :: val
+
+            type(${suffix}$DoublyNode), pointer :: new_node
+            allocate(new_node)
+            new_node%val = val
+
+            new_node%next => this%head
+            if (.not. associated(this%head)) then
+                this%tail => new_node
+            else
+                this%head%prev => new_node
+            end if
+            this%head => new_node
+            this%no_of_elems = this%no_of_elems + 1
+        end subroutine push_front_${suffix}$
+
+        !> @brief Insert given value at tail (end). Time complexity is O(1).
+        !! @param val The value to be inserted
+        subroutine push_back_${suffix}$ (this, val)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(in) :: val
+            type(${suffix}$DoublyNode), pointer :: new_node
+
+            allocate(new_node)
+            new_node%val = val
+
+            new_node%prev => this%tail
+            if (.not. associated(this%head)) then
+                this%head => new_node
+            else
+                this%tail%next => new_node
+            end if
+            this%tail => new_node
+            this%no_of_elems = this%no_of_elems + 1
+        end subroutine push_back_${suffix}$
+
+        !> @brief Remove node pointed to by pointer. Time complexity is O(1).
+        !! @param iter The pointer specifying the node to be removed
+        !! @param returned Variable in which the removed value will be put
+        !! @todo Make this subroutine return the iterator to next node
+        subroutine remove_ptr_${suffix}$ (this, iter, returned)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            type(${suffix}$DoublyNode), intent(inout), pointer :: iter
+            ${dtype}$, intent(out), optional :: returned
+
+            ! Create a local alias so modifications to the local pointer 
+            ! association do not alter the caller's pointer variable 
+            ! (e.g. this%head or this%tail).
+            type(${suffix}$DoublyNode), pointer :: victim
+
+            victim => iter
+
+            ! iter is unassociated2
+            if (.not. associated(victim)) then
+                error stop "DoublyLinkedList%remove: Attempted to remove an unassociated pointer."
+            end if
+
+            ! iter points to head
+            if (associated(victim, this%head)) then
+                call this%pop_front(returned)
+                return
+            end if
+
+            ! iter points to tail
+            if (associated(victim, this%tail)) then
+                call this%pop_back(returned)
+                return
+            end if
+
+            ! For middle removal
+            victim%prev%next => victim%next
+            victim%next%prev => victim%prev
+
+            if (present(returned)) returned = victim%val
+
+            deallocate(victim)
+            nullify(iter)
+
+            this%no_of_elems = this%no_of_elems - 1
+        end subroutine remove_ptr_${suffix}$
+
+        !> @brief Remove node pointed to by iterator. Time complexity is O(1).
+        !! @param iter The iterator specifying the node to be removed
+        !! @param returned Variable in which the removed value will be put
+        subroutine remove_itr_${suffix}$ (this, iter, returned)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            type(${suffix}$DoublyIterator), intent(inout) :: iter
+            ${dtype}$, intent(out), optional :: returned
+
+            if (present(returned)) then
+                call this%remove(iter%curr, returned)
+            else
+                call this%remove(iter%curr)
+            end if
+        end subroutine remove_itr_${suffix}$
+
+        !> @brief Remove value at head (start). Time complexity is O(1).
+        !! @param returned Variable in which the removed value will be put
+        subroutine pop_front_${suffix}$ (this, returned)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(out), optional :: returned
+
+            type(${suffix}$DoublyNode), pointer :: victim
+
+            if (associated(this%head)) then
+                if (associated(this%head%next)) then
+                    this%head%next%prev => null()
+                else
+                    this%tail => null()
+                end if
+                victim => this%head
+                if (present(returned)) returned = victim%val
+                this%head => this%head%next
+                deallocate(victim)
+                this%no_of_elems = this%no_of_elems - 1
+            else
+                error stop "DoublyLinkedList%pop_front: Attempted to pop from empty list"
+            end if
+        end subroutine pop_front_${suffix}$
+
+        !> @brief Remove value at tail (end). Time complexity is O(1).
+        !! @param returned Variable in which the removed value will be put
+        subroutine pop_back_${suffix}$ (this, returned)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(out), optional :: returned
+
+            type(${suffix}$DoublyNode), pointer :: victim
+
+            if (associated(this%tail)) then
+                if (associated(this%tail%prev)) then
+                    this%tail%prev%next => null()
+                else
+                    this%head => null()
+                end if
+                victim => this%tail
+                if (present(returned)) returned = victim%val
+                this%tail => this%tail%prev
+
+                deallocate(victim)
+                this%no_of_elems = this%no_of_elems - 1
+            else
+                error stop "DoublyLinkedList%pop_back: Attempted to pop from empty list"
+            end if
+        end subroutine pop_back_${suffix}$
+
+        !> @brief Returns size (number of elements) of list.
+        function size_${suffix}$(this) result(res)
+            class(${suffix}$DoublyLinkedList), intent(in) :: this
+            integer :: res
+            res = this%no_of_elems
+        end function size_${suffix}$
+
+        !> @brief Reverse list in place.
+        subroutine reverse_${suffix}$ (this)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+
+            ! Iterator for forward iteration from head
+            type(${suffix}$DoublyNode), pointer :: front_iter
+            ! Iterator for backward iteration from tail
+            type(${suffix}$DoublyNode), pointer :: back_iter
+            ! Temporary variable to aid in swapping values
+            integer :: temp
+            ! Loop variable
+            integer :: i
+
+            if (this%no_of_elems < 1) return
+
+            front_iter => this%head
+            back_iter => this%tail
+
+            do i = 1, this%no_of_elems/2
+                temp = front_iter%val
+                front_iter%val = back_iter%val
+                back_iter%val = temp
+
+                front_iter => front_iter%next
+                back_iter => back_iter%prev
+            end do
+        end subroutine reverse_${suffix}$
+
+        !> @brief Deallocate all nodes in the list and make head and tail.
+        !! point to null().
+        subroutine clear_${suffix}$ (this)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+
+            type(${suffix}$DoublyNode), pointer :: iter
+            !! For temporarily pointing to value to be deleted
+            type(${suffix}$DoublyNode), pointer :: victim
+
+            iter => this%head
+            do while (associated(iter))
+                victim => iter
+                iter => iter%next
+                deallocate (victim)
+            end do
+            this%no_of_elems = 0
+            nullify(this%head)
+            nullify(this%tail)
+        end subroutine clear_${suffix}$
+
+        !> @brief Return the iterator pointing to head of list.
+        function begin_${suffix}$ (this)
+            class(${suffix}$DoublyLinkedList), intent(in) :: this
+            type(${suffix}$DoublyIterator) :: begin_${suffix}$
+
+            begin_${suffix}$%curr => this%head
+        end function begin_${suffix}$
+
+        !> @brief Return the iterator pointing to tail of list.
+        function end_${suffix}$ (this)
+            class(${suffix}$DoublyLinkedList), intent(in) :: this
+            type(${suffix}$DoublyIterator) :: end_${suffix}$
+
+            end_${suffix}$%curr => this%tail
+        end function end_${suffix}$
+
+        !> @brief Calls `clear()`.
+        subroutine destroy_list_${suffix}$ (this)
+            type(${suffix}$DoublyLinkedList), intent(inout) :: this
+            call this%clear()
+        end subroutine destroy_list_${suffix}$
+
+        !> @brief Replace all instances of a value in the list with another.
+        !! @param to_replace Which val to replace
+        !! @param to_replace_with What to replace with
+        subroutine replace_${suffix}$ (this, to_replace, to_replace_with)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(in) :: to_replace
+            ${dtype}$, intent(in) :: to_replace_with
+
+            class(${suffix}$DoublyNode), pointer :: iter
+
+            iter => this%head
+            do while (associated(iter))
+                if (iter%val == to_replace) then
+                    iter%val = to_replace_with
+                end if
+                iter => iter%next
+            end do
+        end subroutine replace_${suffix}$
+
+        !> @brief Remove all nodes which have a specific value. Returns amount of elements erased.
+        !! @param val The value to erase
+        subroutine erase_${suffix}$ (this, val, nremoved)
+            class(${suffix}$DoublyLinkedList), intent(inout) :: this
+            ${dtype}$, intent(in) :: val
+            integer, intent(out), optional :: nremoved
+
+            type(${suffix}$DoublyNode), pointer :: iter
+            ! For pointing to the to be deleted node
+            type(${suffix}$DoublyNode), pointer :: temp
+            ${dtype}$::returned
+            integer :: removed
+
+            removed = 0
+            iter => this%head
+            do while (associated(iter))
+                if (iter%val == val) then
+                    temp => iter
+                    iter => iter%next
+                    call this%remove(temp, returned)
+                    removed = removed + 1
+                else
+                    iter => iter%next
+                end if
+            end do
+
+            if (present(nremoved)) nremoved = removed
+        end subroutine erase_${suffix}$
+    end module class_${suffix}$DoublyLinkedList
+#:endfor

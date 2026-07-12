@@ -1,0 +1,146 @@
+!> @brief Insert given value at a given index (index is 1-based)
+!! This subroutine changes the list in place. It will `destroy`
+!! the list and `stop` the program if `index` is out of bounds.
+!! That is if it is outside of [1, no_of_elems+1]
+!! @param val The value to be inserted
+!! @param index At which index insertion is supposed to happen
+subroutine insert_${suffix}$ (self, val, index)
+    class(${suffix}$DoublyLinkedList), intent(inout) :: self
+    ${dtype}$, intent(in) :: val
+    integer, intent(in) :: index
+    type(${suffix}$DoublyNode), pointer :: new_node
+
+    integer :: i
+    type(${suffix}$DoublyNode), pointer :: curr
+
+    if (index < 1 .or. index > self%no_of_elems + 1) then
+        call self%clear()
+        stop "DoublyLinkedList%insert: index out of bounds"
+    end if
+
+    allocate (new_node)
+    new_node%val = val
+
+    ! index = [1, self%no_of_elems+1]
+    ! insert at head
+    if (index == 1) then
+        new_node%next => self%head
+
+        ! At head insertion, tail only gets modified if insertion happened in an empty list
+        ! Tail becomes non-null and points to head
+        if (self%no_of_elems == 0) then
+            self%tail => new_node
+        else
+            self%head%prev => new_node
+        end if
+
+        self%head => new_node
+    else ! index >= 2
+        ! make `curr` point to the node before the target node (index)
+        call self%get_node(index-1, curr)
+        ! curr => self%head
+        ! do i = 1, index - 2
+        !     curr => curr%next
+        ! end do
+
+        new_node%next => curr%next
+        new_node%prev => curr
+        new_node%prev%next => new_node
+
+        ! Check if insertion is happening at tail
+        if (index == self%no_of_elems + 1) then
+            self%tail => new_node
+        else
+            new_node%next%prev => new_node
+        end if
+    end if
+
+    self%no_of_elems = self%no_of_elems + 1
+end subroutine insert_${suffix}$
+
+
+!> @brief Remove node at a given index (index is 1-based) and
+!! returns its value. This subroutine changes the list in place.
+!! It will `destroy` the list and `stop` the program if `index`
+!! is out of bounds. That is if it is outside of [1, no_of_elems]
+!! @param index Index of the value to be removed value
+!! @param returned Variable in which the removed value will be put
+subroutine remove_${suffix}$ (self, index, returned)
+    class(${suffix}$DoublyLinkedList), intent(inout) :: self
+    integer, intent(in) :: index
+    ${dtype}$, intent(out) :: returned
+
+    type(${suffix}$DoublyNode), pointer :: curr
+    integer :: i
+
+    if (index < 1 .or. index > self%no_of_elems) then
+        call self%clear()
+        stop "DoublyLinkedList%remove: index out of bounds"
+    end if
+
+    ! index = [1, self%no_of_elems]
+    ! Remove head
+    if (index == 1) then
+        returned = self%head%val
+        curr => self%head
+        self%head => self%head%next
+
+        ! When removing head, tail only gets modified when list if of size 1 (tail becomes null)
+        if (self%no_of_elems == 1) then
+            self%tail => null()
+        else
+            self%head%prev => null()
+        end if
+    else ! index >= 2
+        ! make curr point to the node at place which insertion is supposed to happen
+        call self%get_node(index, curr)
+
+        returned = curr%val
+        curr%prev%next => curr%next
+
+        ! Check if remove is happening at tail
+        if (index == self%no_of_elems) then
+            self%tail => curr%prev
+        else
+            curr%next%prev => curr%prev
+        end if
+    end if
+
+    deallocate (curr)
+    self%no_of_elems = self%no_of_elems - 1
+end subroutine remove_${suffix}$
+
+
+subroutine insert_after_${suffix}$ (this, curr, val)
+    class(${suffix}$DoublyLinkedList), intent(inout) :: this
+    type(${suffix}$DoublyNode), intent(in), pointer:: curr
+    ${dtype}$, intent(in) :: val
+
+    type(${suffix}$DoublyNode), pointer :: new_node
+    type(${suffix}$DoublyNode), pointer :: local_curr
+
+    local_curr => curr
+
+    allocate(new_node)
+    new_node%val = val
+
+    new_node%prev => local_curr
+    if (associated(local_curr)) then
+        new_node%next => local_curr%next
+        if (associated(local_curr%next)) then
+            local_curr%next%prev => new_node
+        else
+            this%tail => new_node
+        end if
+        local_curr%next => new_node
+    else
+        ! new_node%prev => this%tail
+        new_node%next => null()
+        this%tail => new_node
+
+        if (.not. associated(this%head)) then
+            this%head => new_node
+        end if
+    end if 
+    this%no_of_elems = this%no_of_elems + 1
+end subroutine insert_after_${suffix}$
