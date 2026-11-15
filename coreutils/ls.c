@@ -150,9 +150,10 @@ int main(int argc, char *argv[]) {
 			exit(EXIT_FAILURE);
 		}
 
-		printf("%c%s %s %s %6jd %s %s\n", 
+		printf("%c%s %ju %s %s %6jd %s %s\n", 
 			get_filetype(&sb), 	      // file type 
 			perm,       		      // file permissions
+			(uintmax_t) sb.st_nlink,      // number of links
 			getpwuid(sb.st_uid)->pw_name, // user name
 			getgrgid(sb.st_gid)->gr_name, // group name
 			(intmax_t) sb.st_size,	      // file size
