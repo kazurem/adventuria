@@ -1,11 +1,10 @@
 /*
  * TODO
- * 1. Add support for flags (-h, -l, -alhR etc)
- * 2. Support human mode (-h)
- * 3. Support recursive listing (-R)
- * 4. Support help (-h)
- * 5. Support hidden files (-a)
- * 6. Sort alphabetically by default
+ * 1. Support human mode (-h)
+ * 2. Support recursive listing (-R)
+ * 3. Support help (-h)
+ * 4. Sort alphabetically by default
+ * 5. Deal with padding
 */
 
 #include <stdio.h>
@@ -27,6 +26,18 @@
 #define PATH_SIZE 4096
 #define TIME_STR_SIZE 256
 #define TIME_FORMAT "%b %d %H:%M"
+#define NUM_FLAG_SUPPORTED 4
+#define FLAGS_DTYPE uint16_t
+
+#define SET(x, n)  ((x) | (1 << (n)))
+
+// Macros to see if various flags are provided
+#define IS_ALL(flags)  ((flags) & 1)
+#define IS_LONG(flags) ((flags) & 2)
+#define IS_HUM(flags)  ((flags) & 4)
+#define IS_REC(flags)  ((flags) & 8)
+
+#define RAISE_UNSUPPORTED_FLAG(x) { fprintf(stderr, "ls: unknown flag %c\n", x); exit(EXIT_FAILURE); }
 
 int append_fslash(char str[], size_t size) {
 	size_t len = strlen(str);
@@ -99,17 +110,60 @@ void convert_num_perm_to_str(uintmax_t st_mode, char buf[10]) {
 	buf[9] = '\0';
 }
 
+
+// @brief parses commands line arguments given by argv
+// @returns argv index of path argument if one is given else 0
+// What wach bit of flag represents:
+// 0 -> -a
+// 1 -> -l
+// 2 -> -h
+// 3 -> -R
+// NOTE: start of counting is from LSB
+// After this functions returns, each bit of flags will
+// be set according to the command line flags given
+int parse_args(int argc, char *argv[], FLAGS_DTYPE *flags) {
+	int j;
+	int ret = 0;
+	for (int i = 1; i < argc; i++) {
+		// if not a flag (all flags start with -)
+		if (argv[i][0] != '-') {
+			ret = i; // index of last non flag argument will be returned
+			continue;
+		}
+		
+		j = 1;
+		while (argv[i][j] != '\0') {
+			switch (argv[i][j]) {
+				case 'a':
+					*flags = SET(*flags, 0);
+					break;
+				case 'l':
+					*flags = SET(*flags, 1);
+					break;
+				default:
+					RAISE_UNSUPPORTED_FLAG(argv[i][j]);
+					exit(EXIT_FAILURE);
+			}
+			j++;
+		}
+	}
+
+	return ret;
+}
+
 int main(int argc, char *argv[]) {
 	char path[PATH_SIZE] = "."; // default is current directory 
 	
 	// support for user given path
-	if (argc == 2) {
+	int path_idx;
+	FLAGS_DTYPE flags = 0;
+	if ((path_idx = parse_args(argc, argv, &flags)) > 0) {
 		// check if user given path's length' is greater than supported length 
-		if ((strlen(argv[1]) + 1) > PATH_SIZE) {
-			fprintf(stderr, "path too big: %s\n", argv[1]);
+		if ((strlen(argv[path_idx]) + 1) > PATH_SIZE) {
+			fprintf(stderr, "path too big: %s\n", argv[path_idx]);
 			exit(EXIT_FAILURE);
 		}
-		strcpy(path, argv[1]);
+		strcpy(path, argv[path_idx]);
 	}
 
 	struct stat sb;
@@ -118,7 +172,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	// if given path is not a directory, simply print the file and exit
+	// if given path is not a directory, simply print the file name  and exit
 	if ((sb.st_mode & S_IFMT) != S_IFDIR) {
 		printf("%s\n", path);
 		exit(EXIT_SUCCESS);
@@ -144,6 +198,15 @@ int main(int argc, char *argv[]) {
 	
 	// read the opened directory
 	while ((dir_content = readdir(dir))) {
+		// skip if file is hidden and -a flag is not supplied
+		if (!IS_ALL(flags) && (dir_content->d_name[0] == '.')) continue;
+		
+		// only print file name if -l is not supplied
+		if (!IS_LONG(flags)) {
+			printf("%s\n", dir_content->d_name);
+			continue;
+		}
+
 		strcpy(tmp_path, path);
 		
 		// check if strcat will be successful 
