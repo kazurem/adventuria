@@ -1,12 +1,11 @@
 /*
  * TODO
- * 1. Handle all return values of functions (readdir, printf)
- * 2. Add support for flags (-h, -l, -alhR etc)
- * 3. Support human mode (-h)
- * 4. Support recursive listing (-R)
- * 5. Support help (-h)
- * 6. Support hidden files (-a)
- * 7. Sort alphabetically by default
+ * 1. Add support for flags (-h, -l, -alhR etc)
+ * 2. Support human mode (-h)
+ * 3. Support recursive listing (-R)
+ * 4. Support help (-h)
+ * 5. Support hidden files (-a)
+ * 6. Sort alphabetically by default
 */
 
 #include <stdio.h>
@@ -25,7 +24,7 @@
 #include <grp.h>
 
 
-#define PATH_SIZE 256
+#define PATH_SIZE 4096
 #define TIME_STR_SIZE 256
 #define TIME_FORMAT "%b %d %H:%M"
 
@@ -105,7 +104,24 @@ int main(int argc, char *argv[]) {
 	
 	// support for user given path
 	if (argc == 2) {
+		// check if user given path's length' is greater than supported length 
+		if ((strlen(argv[1]) + 1) > PATH_SIZE) {
+			fprintf(stderr, "path too big: %s\n", argv[1]);
+			exit(EXIT_FAILURE);
+		}
 		strcpy(path, argv[1]);
+	}
+
+	struct stat sb;
+	if (stat(path, &sb) < 0) {
+		perror("stat");
+		exit(EXIT_FAILURE);
+	}
+
+	// if given path is not a directory, simply print the file and exit
+	if ((sb.st_mode & S_IFMT) != S_IFDIR) {
+		printf("%s\n", path);
+		exit(EXIT_SUCCESS);
 	}
 
 	// open the current directory
@@ -115,22 +131,26 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	// read the opened directory
-	struct dirent *dir_content;
 	if (append_fslash(path, PATH_SIZE) < 0) {
-		fprintf(stderr, "append_fslash: path too big");
+		fprintf(stderr, "path too big: %s\n", path);
 		exit(EXIT_FAILURE);
 	}
 
-	struct stat sb;
 	struct tm *tms;
-	char perm[10];
 	char time_str[TIME_STR_SIZE];
+	struct dirent *dir_content;
+	char perm[10];
+	char tmp_path[PATH_SIZE];
+	
+	// read the opened directory
 	while ((dir_content = readdir(dir))) {
-		char tmp_path[PATH_SIZE];
-		
 		strcpy(tmp_path, path);
-		// This call could fail
+		
+		// check if strcat will be successful 
+		if ((strlen(tmp_path) + strlen(dir_content->d_name + 1)) > PATH_SIZE) {
+			fprintf(stderr, "path too big\n");
+			exit(EXIT_FAILURE);
+		}
 		strcat(tmp_path, dir_content->d_name);
 		
 		if (stat(tmp_path, &sb) < 0) {
@@ -146,11 +166,11 @@ int main(int argc, char *argv[]) {
 
 		// note that strftime returning 0 does not necessarily mean an error
 		if (strftime(time_str, sizeof(time_str), TIME_FORMAT, tms) == 0) {
-			fprintf(stderr, "warn: strftime returned 0");
+			fprintf(stderr, "warn: strftime returned 0\n");
 			exit(EXIT_FAILURE);
 		}
 
-		printf("%c%s %ju %s %s %6jd %s %s\n", 
+		printf("%c%s %3ju %5s %5s %8jd %s %s\n", 
 			get_filetype(&sb), 	      // file type 
 			perm,       		      // file permissions
 			(uintmax_t) sb.st_nlink,      // number of links
